@@ -111,7 +111,7 @@ public class AllocationSolver {
             return;
         }
 
-        // stage 3 : select the next person by
+        // stage 3 : select the next person
         Person chosenPerson =selectNextPersonToAssign(unassignedPeople);
 
         //Step 4: Assignment for the selected person

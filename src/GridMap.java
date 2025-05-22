@@ -9,12 +9,11 @@ public class GridMap {
     private Random randomGenerator;
 
 
-    // Constructor - לפי גודל רצוי
-    public GridMap(int numRows, int numCols, long randomSeed ) { // הוספנו seed
-        this.Rows = numRows;
-        this.Cols = numCols;
-        this.Map= new Cell[numRows][numCols];
-        this.randomGenerator = new Random(randomSeed);
+    public GridMap(int rows, int cols, long randomSeed ) { // הוספנו seed
+        setCols(cols);
+        setRows(rows);
+        setMap(new Cell[rows][cols]);
+        setRandomGenerator(new Random(randomSeed));
         initializeEmptyMap();
     }
 
@@ -26,18 +25,45 @@ public class GridMap {
         }
     }
 
-    // (קונסטרקטור מטעינת קובץ/מערך יכול להישאר דומה, עם התאמה לשמות המשתנים)
 
-    // Getters for dimensions
-    public int getNumRows() { return Rows; }
-    public int getNumCols() { return Cols; }
+    public int getRows() {
+        return Rows;
+    }
 
-    // בדיקה אם קואורדינטה נמצאת בגבולות המפה
+    public void setRows(int rows) {
+        Rows = rows;
+    }
+
+    public int getCols() {
+        return Cols;
+    }
+
+    public void setCols(int cols) {
+        Cols = cols;
+    }
+
+    public Cell[][] getMap() {
+        return Map;
+    }
+
+    public void setMap(Cell[][] map) {
+        Map = map;
+    }
+
+    public Random getRandomGenerator() {
+        return randomGenerator;
+    }
+
+    public void setRandomGenerator(Random randomGenerator) {
+        this.randomGenerator = randomGenerator;
+    }
+
+
     public boolean isValid(int row, int col) {
         return row >= 0 && row < Rows && col >= 0 && col < Cols;
     }
 
-    // קבלת התא במיקום מסוים
+
     public Cell getCell(int row, int col) {
         if (isValid(row, col)) {
             return Map[row][col];
@@ -45,7 +71,7 @@ public class GridMap {
         return null;
     }
 
-    // בדיקה אם ניתן ללכת על תא מסוים
+
     public boolean isWalkable(int row, int col) {
         Cell cell = getCell(row, col);
         return cell != null && cell.isWalkable();
@@ -96,7 +122,6 @@ public class GridMap {
         }
         return neighbors;
     }
-
 
 
     // פונקציה למצוא תא ריק רנדומלי (חשוב כדי למקם אובייקטים)

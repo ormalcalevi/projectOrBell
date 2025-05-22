@@ -33,9 +33,6 @@ public class Cell {
         return type != CellType.OBSTACLE;
     }
 
-    // בתוך המחלקה Cell
-
-// ... (השדות, הבנאי, והמתודות הקיימות שלך) ...
 
     @Override
     public boolean equals(Object o) {
