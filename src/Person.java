@@ -5,14 +5,17 @@ public class Person {
     private String id;
     private Cell currentLocation;
     private Shelter assignedShelter;
+    private Cell alternativeGoalCell;
     private PersonStatus status;
     private List<Cell> path;
     private int pathIndex;
+
 
     public Person(String id) {
         setId(id);
         setCurrentLocation(null);
         setAssignedShelter(null);
+        setAlternativeGoalCell(null);
         setStatus(PersonStatus.IDLE);
         setPath(null);
         setPathIndex(-1);
@@ -37,6 +40,14 @@ public class Person {
 
     public void setCurrentLocation(Cell currentLocation) {
         this.currentLocation = currentLocation;
+    }
+
+    public Cell getAlternativeGoalCell() {
+        return alternativeGoalCell;
+    }
+
+    public void setAlternativeGoalCell(Cell alternativeGoalCell) {
+        this.alternativeGoalCell = alternativeGoalCell;
     }
 
     public String getId() {
@@ -87,37 +98,12 @@ public class Person {
         this.status = status;
     }
 
-    /*public Cell getNextStepInPath(){
-        if(this.path==null
-                || this.path.isEmpty()
-                || this.pathIndex < 0
-                || this.pathIndex >= this.path.size()){
-            return null;
-        }
-        return this.path.get(getPathIndex()+1);
-    }*/
     public Cell getNextStepInPath() {
         if (isPathAssigned() && pathIndex < path.size() - 1) { // אם יש נתיב ויש עוד צעד ללכת
             return path.get(pathIndex + 1); // החזר את התא הבא בנתיב
         }
         return null; // אין צעד הבא
     }
-   /* public void advanceOnPath(){
-        if(this.path == null || this.path.isEmpty()){
-            return;
-        }
-        if(this.pathIndex >= this.path.size()-1){
-            if (status != PersonStatus.REACHED_SHELTER) {
-                setStatus(PersonStatus.REACHED_SHELTER);
-            }
-            return;
-        }
-        this.pathIndex++ ;
-        setCurrentLocation(this.path.get(getPathIndex()));
-        if(this.pathIndex==this.path.size()-1){
-            setStatus(PersonStatus.REACHED_SHELTER);
-        }
-    }*/
 
     public void advanceOnPath() {
         if (isPathAssigned() && pathIndex < path.size() - 1) {
@@ -126,13 +112,10 @@ public class Person {
 
             if (isPathFinished()) { // בדוק אם הגיע לסוף הנתיב
                 setStatus(PersonStatus.REACHED_SHELTER);
-                System.out.println("Person " + id + " reached shelter at " + currentLocation);
             }
-        } else {
-            // זה לא אמור לקרות אם קוראים ל-advanceOnPath רק אחרי בדיקה ש-getNextStepInPath אינו null
-            System.err.println("Person " + id + ": Tried to advance on path, but no next step or path not assigned.");
         }
     }
+
 //A route is defined (assigned) only if it is neither null nor empty.
     public boolean isPathAssigned(){
         return this.path !=null && !this.path.isEmpty();

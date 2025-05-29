@@ -16,24 +16,21 @@ public class SimulationEngine {
 
 
     public SimulationEngine(GridMap map, List<Person> personList, List<Shelter> shelterList, int maxTime) {
-        this.map = map;
-        this.personList = personList;
-        this.shelterList = shelterList;
-        this.maxSimulationTime = maxTime;
-        this.pathFinder = new PathFinderAStar(this.map);
-        this.currentTimeStep = 0;
-        this.simulationFinished = false;
+        setMap(map);
+        setPersonList(personList);
+        setShelterList(shelterList);
+        setMaxSimulationTime(maxTime);
+        setPathFinder(new PathFinderAStar(this.map));
+        setCurrentTimeStep(0);
+        setSimulationFinished(false);
     }
 
-    public Map<Person, Shelter> getAssignment() { return assignment; }
+
     public void setAssignment(Map<Person, Shelter> assignment) { this.assignment = assignment; }
     public int getCurrentTimeStep() { return currentTimeStep; }
     public void setCurrentTimeStep(int currentTimeStep) { this.currentTimeStep = currentTimeStep; }
-    public GridMap getMap() { return map; }
     public void setMap(GridMap map) { this.map = map; }
-    public int getMaxSimulationTime() { return maxSimulationTime; }
     public void setMaxSimulationTime(int maxSimulationTime) { this.maxSimulationTime = maxSimulationTime; }
-    public PathFinderAStar getPathFinder() { return pathFinder; }
     public void setPathFinder(PathFinderAStar pathFinder) { this.pathFinder = pathFinder; }
     public List<Person> getPersonList() { return personList; }
     public void setPersonList(List<Person> personList) { this.personList = personList; }
@@ -50,23 +47,12 @@ public class SimulationEngine {
         setCurrentTimeStep(0);
         setSimulationFinished(false);
 
-        if (this.personList == null) {
-            System.err.println("SimulationEngine Error: personList is null. Cannot initialize simulation.");
-            this.simulationFinished = true;
-            return;
-        }
-        if (this.assignment == null) {
-            System.err.println("SimulationEngine Error: Assignment map is null. Cannot calculate paths.");
-            this.simulationFinished = true;
-            return;
-        }
-        if (this.pathFinder == null) {
-            System.err.println("SimulationEngine Error: PathFinder is null. Cannot calculate paths.");
+        if (this.personList == null || this.assignment == null ||  this.pathFinder == null) {
+           // System.err.println("SimulationEngine Error: personList is null / Assignment map is null / PathFinder is null ");
             this.simulationFinished = true;
             return;
         }
 
-        System.out.println("Initializing simulation: Calculating paths for assigned people...");
         for (Person p : this.personList) {
             Shelter assignedShelter = this.assignment.get(p);
             if (assignedShelter != null) {
@@ -75,15 +61,14 @@ public class SimulationEngine {
                 Cell goalCell = assignedShelter.getLocation();
 ////////////////////קריאה לפונקציה עבור יצירת הA* עבור כל אדם
                 if (startCell != null && goalCell != null) {
-                    List<Cell> calculatedPath = this.pathFinder.findPath(startCell, goalCell);
-                    p.setPath(calculatedPath);
+                        List<Cell> calculatedPath = this.pathFinder.findPath(startCell, goalCell);
+                        p.setPath(calculatedPath);
 
-                    if (p.isPathAssigned()) {
-                        p.setStatus(PersonStatus.ASSIGNED);
-                    } else {
-                        p.setStatus(PersonStatus.STUCK);
-                        System.out.println("No path found for Person " + p.getId() + ". Status set to STUCK.");
-                    }
+                        if (p.isPathAssigned()) {
+                            p.setStatus(PersonStatus.ASSIGNED);
+                        } else {
+                            p.setStatus(PersonStatus.STUCK);
+                        }
                 } else {
                     System.err.println("Error for Person " + p.getId() + ": Start or Goal cell is null. Person status set to STUCK.");
                     p.setStatus(PersonStatus.STUCK);
@@ -97,12 +82,11 @@ public class SimulationEngine {
                 p.setAssignedShelter(null);
             }
         }
-        System.out.println("Simulation paths initialization complete.");
     }
 
     public void resetPeople() {
         if (this.personList == null) {
-            System.err.println("Cannot reset people, personList is null!");
+            System.err.println("Cannot reset people, personList is null");
             return;
         }
         for (Person p : this.personList) {
@@ -111,11 +95,10 @@ public class SimulationEngine {
             p.setStatus(PersonStatus.IDLE);
             p.setAssignedShelter(null);
         }
-        System.out.println("All people have been reset to initial state.");
     }
 
 
-   ////Advances the simulation by a single time step.
+       ////Advances the simulation by a single time step.
     public boolean runSingleStep() {
         if (this.simulationFinished) {
             // System.out.println("Simulation has already finished.");
@@ -129,32 +112,28 @@ public class SimulationEngine {
         }
 
         this.currentTimeStep++;
-        System.out.println("\n--- Simulation Step: " + this.currentTimeStep + " ---");
+        System.out.println("\n--- Step: " + this.currentTimeStep + " ---");
 
-        // 1. תכנון התנועות המבוקשות על ידי כל אדם
+        //stage 1 : Save the next step for each person.
         Map<Person, Cell> plannedMoves = planIndividualMoves();
 
-        // 2. זיהוי התנגשויות והחלטה מי באמת יזוז
-        List<Person> peopleMovingThisStep = resolveCollisionsAndGetMovers(plannedMoves);
+        // stage 2 : Avoid collisions and take the next step
+        List<Person> peopleMovingThisStep = preventCollisionsAndExecuteNextStep(plannedMoves);
 
-        // 3. ביצוע התנועות בפועל עבור האנשים שאושרו
+        // stage 3 : Performing the movements for the approved people
         executeMoves(peopleMovingThisStep);
 
-        // 4. בדיקה אם הסימולציה הסתיימה (למשל, כולם הגיעו או נתקעו)
+        // stage 4 : Checking if the simulation is finished
         checkAndSetSimulationEndCondition();
 
         return !this.simulationFinished; // החזר true אם הסימולציה *לא* הסתיימה
     }
 
-    /**
-     * עובר על כל האנשים וקובע לאן כל אחד מהם מתכנן לזוז בצעד הנוכחי.
-     * מטפל גם באנשים שמגיעים ליעדם בצעד זה (אם אין להם צעד הבא).
-     * @return מפה של Person לתא היעד המתוכנן שלו.
-     */
 
+//סורק את האנשים וקובע לאן כל אחד מתכנן ללכת בצעד הנוכחי .  אנשים שאין להם צעד הם הגיעו ליעדם .
     private Map<Person, Cell> planIndividualMoves() {
         Map<Person, Cell> plannedMoves = new HashMap<>();
-        if (this.personList == null) return plannedMoves; // הגנה
+        if (this.personList == null) return plannedMoves;
 
         for (Person p : this.personList) {
             if (p.getStatus() == PersonStatus.ASSIGNED || p.getStatus() == PersonStatus.MOVING) {
@@ -170,14 +149,14 @@ public class SimulationEngine {
                     if (p.getStatus() == PersonStatus.MOVING) { // אם הוא היה בתנועה
                         if (p.getAssignedShelter() != null && p.getCurrentLocation().equals(p.getAssignedShelter().getLocation())) {
                             p.setStatus(PersonStatus.REACHED_SHELTER);
-                            p.getAssignedShelter().addOccupant();
+                            //p.getAssignedShelter().addOccupant();
                         } else if (p.getAssignedShelter() != null && !p.getCurrentLocation().equals(p.getAssignedShelter().getLocation())) {
                             // עדיין בתנועה, אין צעד הבא, והוא לא ביעד - תקוע.
-                            System.err.println("Person " + p.getId() + " is STUCK: MOVING but no next step and not at goal " + p.getAssignedShelter().getLocation() + ". Current: " + p.getCurrentLocation());
+                            //System.err.println("Person " + p.getId() + " is STUCK: MOVING but no next step and not at goal " + p.getAssignedShelter().getLocation() + ". Current: " + p.getCurrentLocation());
                             p.setStatus(PersonStatus.STUCK);
                         } else if (p.getAssignedShelter() == null) {
                             System.err.println("Person " + p.getId() + " is STUCK: MOVING but has no assigned shelter.");
-                            p.setStatus(PersonStatus.STUCK);
+                            p.setStatus(PersonStatus.UNASSIGNED);
                         }
                     }
                 }
@@ -186,16 +165,14 @@ public class SimulationEngine {
         return plannedMoves;
     }
 
-    /**
-     * מקבל את התנועות המתוכננות, מזהה התנגשויות, ומחליט מי מהאנשים יזוז בפועל.
-     * @param plannedMoves מפה של Person לתא היעד המתוכנן שלו.
-     * @return רשימה של Person שיזוזו בפועל בצעד זה.
-     */
-    private List<Person> resolveCollisionsAndGetMovers(Map<Person, Cell> plannedMoves) {
+
+    private List<Person> preventCollisionsAndExecuteNextStep(Map<Person, Cell> plannedMoves) {
         List<Person> peopleActuallyMovingThisStep = new ArrayList<>();
         Map<Cell, List<Person>> targetCellContenders = new HashMap<>();
 
-        // 1. אכלוס מפת המתחרים על כל תא יעד
+        // שלב ראשון : בדיקה עבור כל אדם אם התא אליו הוא מיועד קיים כבר או לא
+        // אם כן : מכניסים את האדם לרשימה של האנשים עבור התא הזה
+        // אם לא : יוצרים רשימה חדשה של אנשים אשר ייצגו את כניסתם לתא
         for (Map.Entry<Person, Cell> entry : plannedMoves.entrySet()) {
             Person person = entry.getKey();
             Cell targetCell = entry.getValue();
@@ -205,38 +182,46 @@ public class SimulationEngine {
         // 2. טיפול בהתנגשויות והחלטה מי זז
         for (Map.Entry<Cell, List<Person>> entry : targetCellContenders.entrySet()) {
             Cell targetCell = entry.getKey();
-            List<Person> contenders = entry.getValue();
+            List<Person> listPeopleCell = entry.getValue();
 
-            if (contenders.size() == 1) {
+            if (listPeopleCell.size() == 1) {
                 // אין התנגשות
-                peopleActuallyMovingThisStep.add(contenders.get(0));
-            } else if (contenders.size() > 1) {
+                peopleActuallyMovingThisStep.add(listPeopleCell.get(0));
+            } else if (listPeopleCell.size() > 1) {
                 // יש התנגשות
-                Person prioritizedPerson = null;
-                int minDistanceToOwnShelter = Integer.MAX_VALUE;
-
-                for (Person personInContention : contenders) {
-                    if (personInContention.getAssignedShelter() != null && personInContention.getAssignedShelter().getLocation() != null) {
-                        int distance = manhattanDistance(targetCell, personInContention.getAssignedShelter().getLocation());
-                        if (distance < minDistanceToOwnShelter) {
-                            minDistanceToOwnShelter = distance;
-                            prioritizedPerson = personInContention;
-                        }
-                        // (אופציונלי: שובר שוויון אם המרחקים זהים)
-                    }
-                }
-
-                if (prioritizedPerson != null) {
-                    peopleActuallyMovingThisStep.add(prioritizedPerson);
-                    // הדפסת דיבאג על מי זז ומי מחכה
-                    // System.out.println("Collision at " + targetCell + ": Person " + prioritizedPerson.getId() + " moves. Others wait.");
-                } else {
-                    System.err.println("Collision at " + targetCell + " but no one could be prioritized. No one moves to this cell this step.");
-                }
+                Person prioritizedPerson = selectPrioritizedPersonFromContenders(listPeopleCell , targetCell);
+                peopleActuallyMovingThisStep.add(prioritizedPerson);
             }
         }
         return peopleActuallyMovingThisStep;
     }
+
+    ///return Prioritized Person From Contenders
+    public Person selectPrioritizedPersonFromContenders(List<Person>listPeopleCell , Cell cellCompetition ){
+        Person prioritizedPerson = null;
+        int DistanceToShelter = Integer.MAX_VALUE;
+        Cell target = null;
+
+        for (Person person : listPeopleCell) {
+            if((person.getAssignedShelter() != null && person.getAssignedShelter().getLocation() != null)){
+                target = person.getAssignedShelter().getLocation();
+            }
+            else if(person.getAlternativeGoalCell() != null ){
+                target = person.getAlternativeGoalCell();
+            }
+
+
+                int currentDistance = manhattanDistance(target, cellCompetition);
+
+                if (prioritizedPerson == null || currentDistance < DistanceToShelter) {
+                    DistanceToShelter = currentDistance;
+                    prioritizedPerson = person;
+                }
+
+        }
+        return prioritizedPerson  ;
+    }
+
 
     /**
      * מבצע בפועל את התנועה עבור האנשים שאושרו לזוז.
@@ -289,7 +274,7 @@ public class SimulationEngine {
         }
 
         if (allAssignedAreDoneOrStuck) {
-            System.out.println("Simulation ended: All assigned people have reached shelters or are stuck.");
+            //System.out.println("Simulation ended: All assigned people have reached shelters or are stuck.");
             this.simulationFinished = true;
         }
     }

@@ -1,7 +1,5 @@
 import java.util.List;
 import java.util.Map;
-// ודאי שכל המחלקות האחרות (Person, Shelter, GridMap, Cell, PathfinderAStar, Node, PersonStatus, CellType, Visualizer) מיובאות או נגישות
-// import your.package.Visualizer; // אם Visualizer בחבילה אחרת
 
 public class SimulationController {
 
@@ -22,9 +20,9 @@ public class SimulationController {
     private static final int DEFAULT_NUM_SHELTERS = 7;
     private static final int DEFAULT_NUM_PEOPLE = 40;
     private static final int DEFAULT_NUM_OBSTACLES = 50;
-    private static final int DEFAULT_TOTAL_CAPACITY = 35; // ודאי שזה capacity per shelter כפי שדיברנו
+    private static final int DEFAULT_TOTAL_CAPACITY = 35;
     private static final long DEFAULT_RANDOM_SEED = 12345L;
-    private static final int DEFAULT_MAX_STEPS_ALLOCATION = 50; // עדכנת ל-50, מצוין!
+    private static final int DEFAULT_MAX_STEPS_ALLOCATION = 50;
     private static final int DEFAULT_MAX_SIMULATION_TIME = 100;
 
     /**
@@ -39,6 +37,14 @@ public class SimulationController {
 
     }
 
+    public informationManagement getInfoManager() {
+        return infoManager;
+    }
+
+    public void setInfoManager(informationManagement infoManager) {
+        this.infoManager = infoManager;
+    }
+
     //עבור הגרפיקה טעינת תרחישinformationManagement
     public void loadAndSetupScenario() {
         System.out.println("--- Loading and Setting up Scenario ---");
@@ -46,12 +52,12 @@ public class SimulationController {
             this.visualizerInstance.updateStatusLabel("טוען תרחיש...");
         }
 ////////////////////////////////
-        this.infoManager = new informationManagement(
-                DEFAULT_ROWS, DEFAULT_COLS, DEFAULT_NUM_PEOPLE, DEFAULT_NUM_SHELTERS,
-                DEFAULT_TOTAL_CAPACITY, DEFAULT_NUM_OBSTACLES, DEFAULT_RANDOM_SEED,
-                DEFAULT_MAX_STEPS_ALLOCATION
-        );
 
+    setInfoManager( new informationManagement(
+            DEFAULT_ROWS, DEFAULT_COLS, DEFAULT_NUM_PEOPLE, DEFAULT_NUM_SHELTERS,
+            DEFAULT_TOTAL_CAPACITY, DEFAULT_NUM_OBSTACLES, DEFAULT_RANDOM_SEED,
+            DEFAULT_MAX_STEPS_ALLOCATION
+    ));
 
         this.currentMap = this.infoManager.getMap();
         this.currentPeopleList = this.infoManager.getPeopleList();
@@ -78,7 +84,7 @@ public class SimulationController {
         }
     }
 
-    ///אחראית על הרצת אלגוריתם השיבוץallocationSolver
+  ///אחראית על הרצת אלגוריתם השיבוץallocationSolver
     public void runAllocationAlgorithm() {
         if (this.currentPeopleList == null
                 || this.currentMap == null
@@ -97,9 +103,10 @@ public class SimulationController {
         }
 ///////////////////////////////////
         this.bestAssignment = this.allocationSolver.solve(
-                this.currentShelterList, this.currentMap, this.currentMaxStepsForAllocation,
+                this.currentShelterList,this.currentPeopleList, this.currentMap, this.currentMaxStepsForAllocation,
                 this.currentPeopleList, this.currentOptionalShelters
         );
+
 //////////////////////////////////
         System.out.println("\n--- Allocation Result ---");
         if (this.bestAssignment == null || this.bestAssignment.isEmpty()) {
@@ -169,7 +176,7 @@ public class SimulationController {
     public void runFullSimulation() {
 
         if (this.simulationEngine == null) {
-            System.err.println("Cannot run simulation: Simulation Engine not initialized.");
+           // System.err.println("Cannot run simulation: Simulation Engine not initialized.");
             if (this.visualizerInstance != null) {
                 this.visualizerInstance.updateStatusLabel("שגיאה: מנוע סימולציה לא אותחל.");
             }
@@ -225,8 +232,6 @@ public class SimulationController {
             printSimulationSummary(); // אם אין GUI, הדפס לקונסולה
         }
     }
-
-
 
 
     private String getSimulationSummaryText() {
@@ -291,23 +296,4 @@ public class SimulationController {
     }
 
 
-    public static void main(String[] args) {
-        System.out.println("--- Running SimulationController WITHOUT GUI ---");
-
-        // יצירת SimulationController והעברת null בתור ה-Visualizer
-        SimulationController controllerNoGui = new SimulationController(null);
-
-        // הרצת שלבי הסימולציה כרגיל
-        controllerNoGui.loadAndSetupScenario();
-
-        // (אופציונלי) בדיקה אם התרחיש נטען בהצלחה לפני שממשיכים
-        // if (controllerNoGui.isScenarioLoadedSuccessfully()) { // אם הוספת מתודה כזו
-        controllerNoGui.runAllocationAlgorithm();
-        // if (controllerNoGui.isAllocationDoneSuccessfully()) {
-        controllerNoGui.initializeSimulationEngine();
-        // if (controllerNoGui.isEngineInitializedSuccessfully()) {
-        controllerNoGui.runFullSimulation();
-
-        System.out.println("\n--- SimulationController run (without GUI) finished. ---");
-    }
 }

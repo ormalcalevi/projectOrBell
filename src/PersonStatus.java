@@ -6,5 +6,7 @@ public enum PersonStatus {
     MOVING,        // בתנועה לאורך המסלול
     REACHED_SHELTER, // הגיע בהצלחה למקלט
     UNASSIGNED,    // לא הוקצה למקלט (לאחר Backtracking)
-    STUCK          // לא יכול לזוז / נתקע / נגמר הזמן (אולי נוסיף מאוחר יותר)
+    STUCK     // לא יכול לזוז / נתקע / נגמר הזמן
+
 }
+
