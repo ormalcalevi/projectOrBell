@@ -9,6 +9,9 @@ public class AllocationSolver {
     private List<Person> peopleList;
     private int maxSteps;
     private Map<Person, List<Shelter>> optionalSheltersForEachPerson;
+    private long backtrackCallCount;
+    private long pruningActivationCount ;
+    private long potentialImmediateCallsAvoided;
 
 
     public Map<Person, Shelter> solve(List<Shelter> sheltersList,List<Person>peopleList, GridMap map, int maxSteps, List<Person> initialPeopleList, Map<Person, List<Shelter>> optionalShelters) {
@@ -18,6 +21,9 @@ public class AllocationSolver {
         setMaxSteps(maxSteps);
         this.bestAssignmentSoFar = new HashMap<>();
         setMaxPeopleSavedSoFar(0);
+        setBacktrackCallCount(0);
+        setPruningActivationCount(0);
+        setPotentialImmediateCallsAvoided(0);
         setBestTotalManhattanDistance(Integer.MAX_VALUE);
         setOptionalSheltersForEachPerson(optionalShelters);
 
@@ -31,6 +37,29 @@ public class AllocationSolver {
         return this.bestAssignmentSoFar;
     }
 
+    public long getPotentialImmediateCallsAvoided() {
+        return potentialImmediateCallsAvoided;
+    }
+
+    public void setPotentialImmediateCallsAvoided(long potentialImmediateCallsAvoided) {
+        this.potentialImmediateCallsAvoided = potentialImmediateCallsAvoided;
+    }
+
+    public long getPruningActivationCount() {
+        return pruningActivationCount;
+    }
+
+    public void setPruningActivationCount(long pruningActivationCount) {
+        this.pruningActivationCount = pruningActivationCount;
+    }
+
+    public long getBacktrackCallCount() {
+        return backtrackCallCount;
+    }
+
+    public void setBacktrackCallCount(long backtrackCallCount) {
+        this.backtrackCallCount = backtrackCallCount;
+    }
 
     public void setSheltersList(List<Shelter> sheltersList) {
         this.sheltersList = sheltersList;
@@ -83,45 +112,52 @@ public class AllocationSolver {
         }
     }
 
-
     public void backtrackRecursiveHelper(List<Person> unassignedPeople, Map<Person, Shelter> currentAssignment) {
+        backtrackCallCount++;
+
         // stage 1 : pruning
-        if (shouldPrune(unassignedPeople, currentAssignment)) {
-            return;
+        boolean mustPrune = shouldPrune(unassignedPeople, currentAssignment);
+
+        if (mustPrune) {
+            if (!unassignedPeople.isEmpty()) {
+                Person tempChosenPerson = selectNextPersonToAssign(new ArrayList<>(unassignedPeople));
+                if (tempChosenPerson != null) {
+                    List<Shelter> tempShelters = getValidAndSortedSheltersForPerson(tempChosenPerson);
+                    this.potentialImmediateCallsAvoided += (tempShelters.size() + 1);
+                }
+            }
+        } else {      // (mustPrune == false)
+            // stage 2 : (Base Case)
+            if (unassignedPeople.isEmpty()) {
+                evaluateAndStoreSolution(currentAssignment);
+            } else {
+                // stage 3 : select the next person
+                Person chosenPerson = selectNextPersonToAssign(unassignedPeople);
+
+                //Step 4: Assignment for the selected person
+                List<Person> nextUnassignedPeople = new ArrayList<>(unassignedPeople);
+                nextUnassignedPeople.remove(chosenPerson);
+                List<Shelter> sortedPossibleShelters = getValidAndSortedSheltersForPerson(chosenPerson);
+
+                for (Shelter shelter : sortedPossibleShelters) {
+                    currentAssignment.put(chosenPerson, shelter);
+                    shelter.addOccupant();
+                    backtrackRecursiveHelper(nextUnassignedPeople, currentAssignment); // קריאה רקורסיבית
+                    currentAssignment.remove(chosenPerson);
+                    shelter.decrementOccupancy();
+                }
+
+                //stage 5 :It represents the choice to leave 'personToAssign' unassigned and
+                // find the best possible assignment for the 'nextUnassignedPeople' under that condition.
+                backtrackRecursiveHelper(nextUnassignedPeople, currentAssignment);
+            }
         }
-
-        // stage 2 : (Base Case)
-        if (unassignedPeople.isEmpty()) {
-            evaluateAndStoreSolution(currentAssignment);
-            return;
-        }
-
-        // stage 3 : select the next person
-        Person chosenPerson = selectNextPersonToAssign(unassignedPeople);
-
-        //Step 4: Assignment for the selected person
-        List<Person> nextUnassignedPeople = new ArrayList<>(unassignedPeople);
-        nextUnassignedPeople.remove(chosenPerson);
-
-        List<Shelter> sortedPossibleShelters = new ArrayList<>(getValidAndSortedSheltersForPerson(chosenPerson));
-
-        for (Shelter shelter : sortedPossibleShelters) {
-            currentAssignment.put(chosenPerson, shelter);
-            shelter.addOccupant();
-            backtrackRecursiveHelper(nextUnassignedPeople, currentAssignment);
-
-            currentAssignment.remove(chosenPerson);
-            shelter.decrementOccupancy();
-        }
-
-        //stage 5 :It represents the choice to leave 'personToAssign' unassigned and
-        // find the best possible assignment for the 'nextUnassignedPeople' under that condition.
-        backtrackRecursiveHelper(nextUnassignedPeople, currentAssignment);
     }
 
 
     private boolean shouldPrune(List<Person> unassignedPeople, Map<Person, Shelter> currentAssignment) {
         if (calculatePotentialMax(unassignedPeople, this.sheltersList, currentAssignment) <= this.maxPeopleSavedSoFar) {
+            this.pruningActivationCount++;
             return true;
         }
         return false; // true אם צריך לגזום
@@ -321,5 +357,3 @@ public class AllocationSolver {
         return alternativeGoal;
     }
 }
-
-

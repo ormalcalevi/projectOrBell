@@ -242,7 +242,11 @@ public class informationManagement {
 
                 }
             }
-        this.optionalShelters.put(person,personSpecificAvailableShelters);
+            personSpecificAvailableShelters.sort(Comparator.comparingInt(shelter ->
+                    manhattanDistance(personLoc, shelter.getLocation())
+            ));
+
+        this.optionalShelters.put(person, personSpecificAvailableShelters);
 
 
         }
@@ -250,5 +254,8 @@ public class informationManagement {
 
     }
 
-
+    private int manhattanDistance(Cell c1, Cell c2) {
+        if (c1 == null || c2 == null) return Integer.MAX_VALUE;
+        return Math.abs(c1.getRow() - c2.getRow()) + Math.abs(c1.getCol() - c2.getCol());
+    }
 }

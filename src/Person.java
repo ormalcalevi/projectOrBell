@@ -116,7 +116,7 @@ public class Person {
         }
     }
 
-//A route is defined (assigned) only if it is neither null nor empty.
+    //A route is defined (assigned) only if it is neither null nor empty.
     public boolean isPathAssigned(){
         return this.path !=null && !this.path.isEmpty();
 
@@ -127,8 +127,8 @@ public class Person {
             return false;
         }
 
-            return this.pathIndex==this.path.size()-1;
-        }
+        return this.pathIndex==this.path.size()-1;
+    }
 
 
 }

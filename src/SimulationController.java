@@ -1,299 +1,248 @@
 import java.util.List;
 import java.util.Map;
+import javafx.animation.Timeline;
+import javafx.animation.KeyFrame;
+import javafx.animation.Animation;
+import javafx.application.Platform;
+import javafx.util.Duration;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
+import javafx.animation.Animation;
+import javafx.util.Duration;
 
 public class SimulationController {
 
     private informationManagement infoManager;
     private AllocationSolver allocationSolver;
     private SimulationEngine simulationEngine;
-    private Visualizer visualizerInstance; // שדה שיחזיק את מופע ה-Visualizer
+    private Visualizer visualizer;
 
     private GridMap currentMap;
-    private List<Person> currentPeopleList;
-    private List<Shelter> currentShelterList;
+    private List<Person> currentPeople;
+    private List<Shelter> currentShelters;
     private Map<Person, List<Shelter>> currentOptionalShelters;
     private int currentMaxStepsForAllocation;
     private Map<Person, Shelter> bestAssignment;
+    private long BacktrackCallCount;
 
-    private static final int DEFAULT_ROWS = 100;
-    private static final int DEFAULT_COLS = 100;
+    // ערכי ברירת מחדל לתרחיש
+    private static final int DEFAULT_ROWS = 75;
+    private static final int DEFAULT_COLS = 75;
     private static final int DEFAULT_NUM_SHELTERS = 7;
     private static final int DEFAULT_NUM_PEOPLE = 40;
-    private static final int DEFAULT_NUM_OBSTACLES = 50;
+    private static final int DEFAULT_NUM_OBSTACLES = 200;
     private static final int DEFAULT_TOTAL_CAPACITY = 35;
     private static final long DEFAULT_RANDOM_SEED = 12345L;
     private static final int DEFAULT_MAX_STEPS_ALLOCATION = 50;
-    private static final int DEFAULT_MAX_SIMULATION_TIME = 100;
+    private static final int DEFAULT_MAX_SIM_TIME = 100;
 
     /**
-     * בנאי של SimulationController.
-     * מקבל מופע של Visualizer כדי שיוכל לעדכן את ה-GUI.
-     *
-     * @param visualizer מופע של Visualizer
+     * @param visualizer מופע Visualizer להצגת UI
      */
     public SimulationController(Visualizer visualizer) {
-        this.visualizerInstance = visualizer;
+        this.visualizer = visualizer;
         this.allocationSolver = new AllocationSolver();
-
     }
 
-    public informationManagement getInfoManager() {
-        return infoManager;
-    }
-
-    public void setInfoManager(informationManagement infoManager) {
-        this.infoManager = infoManager;
-    }
-
-    //עבור הגרפיקה טעינת תרחישinformationManagement
+    /**
+     * טוען תרחיש ראשוני ומאתחל את ה-Visualizer
+     */
     public void loadAndSetupScenario() {
-        System.out.println("--- Loading and Setting up Scenario ---");
-        if (this.visualizerInstance != null) {
-            this.visualizerInstance.updateStatusLabel("טוען תרחיש...");
+        if (visualizer != null) {
+            visualizer.updateStatusLabel("טוען תרחיש...");
         }
-////////////////////////////////
+        infoManager = new informationManagement(
+                DEFAULT_ROWS, DEFAULT_COLS,
+                DEFAULT_NUM_PEOPLE, DEFAULT_NUM_SHELTERS,
+                DEFAULT_TOTAL_CAPACITY, DEFAULT_NUM_OBSTACLES,
+                DEFAULT_RANDOM_SEED, DEFAULT_MAX_STEPS_ALLOCATION
+        );
+        currentMap = infoManager.getMap();
+        currentPeople = infoManager.getPeopleList();
+        currentShelters = infoManager.getShelterList();
+        currentOptionalShelters = infoManager.getOptionalShelters();
+        currentMaxStepsForAllocation = infoManager.getMaxSteps();
 
-    setInfoManager( new informationManagement(
-            DEFAULT_ROWS, DEFAULT_COLS, DEFAULT_NUM_PEOPLE, DEFAULT_NUM_SHELTERS,
-            DEFAULT_TOTAL_CAPACITY, DEFAULT_NUM_OBSTACLES, DEFAULT_RANDOM_SEED,
-            DEFAULT_MAX_STEPS_ALLOCATION
-    ));
-
-        this.currentMap = this.infoManager.getMap();
-        this.currentPeopleList = this.infoManager.getPeopleList();
-        this.currentShelterList = this.infoManager.getShelterList();
-        this.currentOptionalShelters = this.infoManager.getOptionalShelters();
-        this.currentMaxStepsForAllocation = this.infoManager.getMaxSteps();
-///////////////////////////////////
-        if (this.currentMap == null || this.currentPeopleList == null || this.currentShelterList == null || this.currentOptionalShelters == null) {
-            System.err.println("Error: Scenario data not loaded correctly from InformationManagement!");
-            if (this.visualizerInstance != null) {
-                this.visualizerInstance.updateStatusLabel("שגיאה בטעינת התרחיש!");
+        if (currentMap == null || currentPeople == null || currentShelters == null || currentOptionalShelters == null) {
+            System.err.println("Error: Scenario data not loaded correctly.");
+            if (visualizer != null) {
+                visualizer.updateStatusLabel("שגיאה בטעינת התרחיש!");
             }
             return;
         }
-        System.out.println("Scenario loaded: " + this.currentPeopleList.size() + " people, " +
-                this.currentShelterList.size() + " shelters on a " +
-                this.currentMap.getRows() + "x" + this.currentMap.getCols() + " map.");
-        System.out.println("Max steps for allocation: " + this.currentMaxStepsForAllocation);
 
-
-        if (this.visualizerInstance != null) {
-            this.visualizerInstance.initializeVisuals(this.currentMap, this.currentPeopleList, this.currentShelterList);
-            this.visualizerInstance.updateStatusLabel("תרחיש נטען. מוכן להקצאה.");
+        if (visualizer != null) {
+            visualizer.initializeVisuals(currentMap, currentPeople, currentShelters);
+            visualizer.updateStatusLabel("תרחיש נטען. מוכן להקצאה.");
         }
     }
 
-  ///אחראית על הרצת אלגוריתם השיבוץallocationSolver
-    public void runAllocationAlgorithm() {
-        if (this.currentPeopleList == null
-                || this.currentMap == null
-                || this.currentShelterList == null
-                || this.currentOptionalShelters == null) {
-            System.err.println("Cannot run allocation: Scenario data is not loaded or is invalid.");
-            if (this.visualizerInstance != null) {
-                this.visualizerInstance.updateStatusLabel("שגיאה: לא ניתן להריץ הקצאה, נתונים חסרים.");
+    /**
+     * מריץ את אלגוריתם ההקצאה עם הפרמטרים מה-informationManagement
+     */
+   public void runAllocationAlgorithm() {
+        if (currentMap == null || currentPeople == null || currentShelters == null || currentOptionalShelters == null) {
+            if (visualizer != null) {
+                visualizer.updateStatusLabel("שגיאה: נתונים חסרים להקצאה.");
             }
             return;
         }
-
-        System.out.println("\n--- Running Allocation Algorithm (Backtracking) ---");
-        if (this.visualizerInstance != null) {
-            this.visualizerInstance.updateStatusLabel("מריץ אלגוריתם הקצאה...");
+        if (visualizer != null) {
+            visualizer.updateStatusLabel("מריץ אלגוריתם הקצאה...");
         }
-///////////////////////////////////
-        this.bestAssignment = this.allocationSolver.solve(
-                this.currentShelterList,this.currentPeopleList, this.currentMap, this.currentMaxStepsForAllocation,
-                this.currentPeopleList, this.currentOptionalShelters
+
+        // קריאה לתשובה בהתאם לחתימת solve
+        bestAssignment = allocationSolver.solve(
+                currentShelters,
+                currentPeople,
+                currentMap,
+                currentMaxStepsForAllocation,
+                currentPeople,
+                currentOptionalShelters
         );
 
-//////////////////////////////////
-        System.out.println("\n--- Allocation Result ---");
-        if (this.bestAssignment == null || this.bestAssignment.isEmpty()) {
+        if (bestAssignment == null || bestAssignment.isEmpty()) {
             System.out.println("No optimal assignment found or an error occurred.");
-            if (this.visualizerInstance != null) {
-                this.visualizerInstance.updateStatusLabel("הקצאה הסתיימה: לא נמצא שיבוץ אופטימלי.");
-                // רענון התצוגה כדי להראות אנשים לא משובצים (אם צבעם משתנה)
-                this.visualizerInstance.refreshDisplay(this.currentPeopleList, "הקצאה הסתיימה: לא נמצא שיבוץ", 0, 0);
+            if (visualizer != null) {
+                visualizer.refreshDisplay(currentPeople, "הקצאה הסתיימה: לא נמצא שיבוץ", 0, 0);
             }
         } else {
-            int peopleSavedInAllocation = this.allocationSolver.getMaxPeopleSavedSoFar();
-            System.out.println("Optimal assignment found for " + peopleSavedInAllocation + " people.");
-            System.out.println("Total Manhattan distance for this assignment: " + this.allocationSolver.getBestTotalManhattanDistance());
-            if (this.visualizerInstance != null) {
-                this.visualizerInstance.updateStatusLabel("הקצאה הסתיימה: " + peopleSavedInAllocation + " אנשים שובצו.");
-                // עדכון סטטוס האנשים במערכת המרכזית (currentPeopleList) אם AllocationSolver לא עושה זאת
-                // ורענון התצוגה כדי לשקף את השיבוצים (למשל, שינוי צבע של אנשים משובצים)
-                this.visualizerInstance.refreshDisplay(this.currentPeopleList, "הקצאה הסתיימה", 0, peopleSavedInAllocation);
-            }
-            for (Map.Entry<Person, Shelter> entry : this.bestAssignment.entrySet()) {
-                System.out.println("Person " + entry.getKey().getId() + " -> Shelter " + entry.getValue().getId());
+            int saved = allocationSolver.getMaxPeopleSavedSoFar();
+            int totalDist = allocationSolver.getBestTotalManhattanDistance();
+            System.out.println("Optimal assignment for " + saved + " people. Total distance: " + totalDist);
+            if (visualizer != null) {
+                visualizer.refreshDisplay(currentPeople, "הקצאה הסתיימה: " + saved + " אנשים שובצו.", 0, saved);
             }
         }
     }
-
-    //.simulationEngine
-
-    public void initializeSimulationEngine() {
-        if (this.bestAssignment == null) {
-            System.err.println("Cannot initialize simulation engine: No assignment available.");
-            if (this.visualizerInstance != null) {
-                this.visualizerInstance.updateStatusLabel("שגיאה: לא ניתן לאתחל מנוע סימולציה ללא הקצאה.");
+  /*  public void runAllocationAlgorithm() {
+        if (currentMap == null || currentPeople == null || currentShelters == null || currentOptionalShelters == null) {
+            if (visualizer != null) {
+                visualizer.updateStatusLabel("שגיאה: נתונים חסרים להקצאה.");
             }
             return;
         }
-
-
-        System.out.println("\n--- Initializing Simulation Engine ---");
-        if (this.visualizerInstance != null) {
-            this.visualizerInstance.updateStatusLabel("מאתחל מנוע סימולציה...");
+        if (visualizer != null) {
+            visualizer.updateStatusLabel("מריץ אלגוריתם הקצאה...");
         }
-/////////////////////
-        this.simulationEngine = new SimulationEngine(
-                this.currentMap, this.currentPeopleList, this.currentShelterList,
-                DEFAULT_MAX_SIMULATION_TIME
+
+        // קריאה לתשובה בהתאם לחתימת solve
+        bestAssignment = allocationSolver.solve(
+                currentShelters,
+                currentPeople,
+                currentMap,
+                currentMaxStepsForAllocation,
+                currentPeople,
+                currentOptionalShelters
         );
-        this.simulationEngine.initializeSimulation(this.bestAssignment);
-        System.out.println("Simulation Engine Initialized. Paths calculated.");
-///////////////////
 
+        // ================== תוספות חדשות כאן ==================
 
-        if (this.visualizerInstance != null) {
-            this.visualizerInstance.updateStatusLabel("מנוע סימולציה אותחל. מסלולים חושבו.");
-            // רענון תצוגה ראשוני לאחר חישוב מסלולים (אם יש שינוי ויזואלי בסטטוס אנשים)
-            // ייתכן ש-simulationEngine.getPeopleList() יחזיר רשימה עם סטטוסים מעודכנים
-            this.visualizerInstance.refreshDisplay(
-                    this.simulationEngine.getPersonList(), // ייתכן שצריך לקבל את הרשימה המעודכנת מהמנוע
-                    "מנוע סימולציה אותחל",
-                    this.simulationEngine.getCurrentTimeStep(), // צריך להיות 0 כאן
-                    0 // עדיין לא ניצלו אנשים בסימולציה
-            );
+        // 1. קבלת מספר הקריאות שבוצעו בפועל (כבר קיים אצלך)
+        this.BacktrackCallCount = allocationSolver.getBacktrackCallCount();
+
+        // 2. קבלת מספר הקריאות הישירות שנחסכו
+        long immediateCallsAvoided = allocationSolver.getPotentialImmediateCallsAvoided();
+
+        // 3. חישוב סך הקריאות הפוטנציאלי (הערכה)
+        long estimatedPotentialCalls = this.BacktrackCallCount + immediateCallsAvoided;
+
+        // 4. קריאה למתודה החדשה ב-Visualizer לעדכון הסטטיסטיקה
+        if (visualizer != null) {
+            visualizer.updateAlgorithmStats(this.BacktrackCallCount, estimatedPotentialCalls);
         }
-    }
 
+        // ================== סוף התוספות ==================
 
-    ///////////אחראית על הרצת הסימולציה הדינמית צעד אחר צעד עד לסיומה
-    public void runFullSimulation() {
+        if (bestAssignment == null || bestAssignment.isEmpty()) {
+            System.out.println("No optimal assignment found or an error occurred.");
+            if (visualizer != null) {
+                visualizer.refreshDisplay(currentPeople, "הקצאה הסתיימה: לא נמצא שיבוץ", 0, 0);
+            }
+        } else {
+            int saved = allocationSolver.getMaxPeopleSavedSoFar();
+            int totalDist = allocationSolver.getBestTotalManhattanDistance();
+            System.out.println("Optimal assignment for " + saved + " people. Total distance: " + totalDist);
+            if (visualizer != null) {
+                // שים לב: אתה קורא גם ל-refreshDisplay כדי לעדכן את המפה, וגם ל-updateAlgorithmStats כדי לעדכן את ה-Labels. זה מצוין.
+                visualizer.refreshDisplay(currentPeople, "הקצאה הסתיימה: " + saved + " אנשים שובצו.", 0, saved);
+            }
+        }
+    }*/
 
-        if (this.simulationEngine == null) {
-           // System.err.println("Cannot run simulation: Simulation Engine not initialized.");
-            if (this.visualizerInstance != null) {
-                this.visualizerInstance.updateStatusLabel("שגיאה: מנוע סימולציה לא אותחל.");
+    /**
+     * מאתחל את מנוע הסימולציה לאחר הקצאה
+     */
+    public void initializeSimulationEngine() {
+        if (bestAssignment == null) {
+            if (visualizer != null) {
+                visualizer.updateStatusLabel("שגיאה: אין הקצאה לאתחול סימולציה.");
             }
             return;
         }
+        simulationEngine = new SimulationEngine(currentMap, currentPeople, currentShelters, DEFAULT_MAX_SIM_TIME);
+        simulationEngine.initializeSimulation(bestAssignment);
 
-        System.out.println("\n--- Starting Full Simulation ---");
-        if (this.visualizerInstance != null) {
-            this.visualizerInstance.updateStatusLabel("מתחיל סימולציה...");
-        }
-
-///////////runSingleStep
-        while (!this.simulationEngine.isSimulationFinished()) {
-            boolean canContinue = this.simulationEngine.runSingleStep();
-
-            if (this.visualizerInstance != null && canContinue) {
-                int peopleReachedShelter = 0;
-                for (Person p : this.simulationEngine.getPersonList()) {
-                    if (p.getStatus() == PersonStatus.REACHED_SHELTER) peopleReachedShelter++;
-                }
-
-                this.visualizerInstance.refreshDisplay(
-                        this.simulationEngine.getPersonList(),
-                        "סימולציה רצה...",
-                        this.simulationEngine.getCurrentTimeStep(),
-                        peopleReachedShelter
-                );
-            }
-
-            if (!canContinue) {
-                break;
-            }
-
-            // השהייה קטנה אם רוצים לראות את הצעדים לאט יותר (רק אם יש GUI)
-            if (this.visualizerInstance != null) {
-                try {
-                    Thread.sleep(100); // למשל 100 מילישניות
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt(); // חשוב לשחזר את מצב ה-interrupt
-                    System.err.println("Simulation thread interrupted.");
-                    break;
-                }
-            }
-        }
-
-        System.out.println("--- Full Simulation Ended ---");
-        if (this.visualizerInstance != null) {
-            this.visualizerInstance.updateStatusLabel("הסימולציה הסתיימה. זמן: " + this.simulationEngine.getCurrentTimeStep());
-            String summary = getSimulationSummaryText(); // מתודה חדשה ליצירת מחרוזת סיכום
-            this.visualizerInstance.appendInfoTextArea("\n--- סיכום סופי ---");
-            this.visualizerInstance.appendInfoTextArea(summary);
-        } else {
-            printSimulationSummary(); // אם אין GUI, הדפס לקונסולה
+        if (visualizer != null) {
+            visualizer.refreshDisplay(simulationEngine.getPersonList(), "מנוע סימולציה אותחל", 0, 0);
         }
     }
 
+    /**
+     * מתחיל סימולציה דינמית באמצעות JavaFX Timeline
+     */
+    public void startSimulation() {
+        if (simulationEngine == null) return;
 
+        // 1. הגדר Timeline ריק מראש, וסמן אותו כ־final כדי שנוכל לשייך אותו ב־lambda
+        final Timeline timeline = new Timeline();
+
+        // 2. צור KeyFrame עם ה־handler שבו תעדכן ותעצור את ה־timeline במידת הצורך
+        KeyFrame frame = new KeyFrame(Duration.millis(100), event -> {
+            if (!simulationEngine.isSimulationFinished()) {
+                // כל צעד סימולציה
+                simulationEngine.runSingleStep();
+
+                int reached = (int) simulationEngine.getPersonList().stream()
+                        .filter(p -> p.getStatus() == PersonStatus.REACHED_SHELTER)
+                        .count();
+
+                if (visualizer != null) {
+                    visualizer.refreshDisplay(
+                            simulationEngine.getPersonList(),
+                            "סימולציה רצה...",
+                            simulationEngine.getCurrentTimeStep(),
+                            reached
+                    );
+                }
+
+            } else {
+                // כאן הסימולציה הסתיימה – עצור את ה־timeline
+                timeline.stop();
+
+                if (visualizer != null) {
+                    visualizer.updateInfoTextArea(
+                            "--- הסימולציה הסתיימה ---\n" +
+                                    getSimulationSummaryText()
+                    );
+                }
+            }
+        });
+
+        // 3. קבע את ה־KeyFrame ל־Timeline, הגדר לולאה אינסופית והפעל
+        timeline.getKeyFrames().add(frame);
+        timeline.setCycleCount(Animation.INDEFINITE);
+        timeline.play();
+    }
+
+
+    /**
+     * מסכם את תוצאות הסימולציה לטקסט
+     */
     private String getSimulationSummaryText() {
-        if (this.simulationEngine == null || this.currentPeopleList == null) {
-            return "לא ניתן להציג סיכום: הסימולציה לא רצה או שנתונים חסרים.";
-        }
         StringBuilder sb = new StringBuilder();
-        sb.append("\n--- Simulation Summary (After ").append(this.simulationEngine.getCurrentTimeStep()).append(" steps) ---\n");
-        int reachedShelterCount = 0;
-        int stuckCount = 0;
-        int unassignedCount = 0;
-        int stillMovingCount = 0;
-
-
-        List<Person> finalPeopleList = this.simulationEngine.getPersonList();
-
-        for (Person person : finalPeopleList) {
-            sb.append("Person ").append(person.getId()).append(": Status = ").append(person.getStatus());
-            sb.append(person.getAssignedShelter() != null ? ", Assigned to = " + person.getAssignedShelter().getId() : ", Not Assigned");
-            sb.append(person.getPath() != null && !person.getPath().isEmpty() ? ", Path Length = " + person.getPath().size() : ", No Path");
-            sb.append(", Current Location = ").append(person.getCurrentLocation()).append("\n");
-
-            switch (person.getStatus()) {
-                case REACHED_SHELTER:
-                    reachedShelterCount++;
-                    break;
-                case STUCK:
-                    stuckCount++;
-                    break;
-                case UNASSIGNED:
-                    unassignedCount++;
-                    break;
-                case MOVING:
-                case ASSIGNED:
-                    stillMovingCount++;
-                    break;
-                default:
-                    break;
-            }
-        }
-        sb.append("\nTotal People Reached Shelter: ").append(reachedShelterCount).append("\n");
-        sb.append("Total People Stuck: ").append(stuckCount).append("\n");
-        sb.append("Total People Unassigned: ").append(unassignedCount).append("\n");
-        if (stillMovingCount > 0) {
-            sb.append("Total People Still Moving/Assigned: ").append(stillMovingCount).append("\n");
-        }
-
-        sb.append("\nShelter Occupancies:\n");
-        List<Shelter> finalShelterList = this.simulationEngine.getShelterList();
-        if (finalShelterList != null) {
-            for (Shelter shelter : finalShelterList) {
-                sb.append("Shelter ").append(shelter.getId()).append(" (Capacity: ").append(shelter.getTotalCapacity());
-                sb.append("): Occupancy = ").append(shelter.getCurrentOccupancy()).append("\n");
-            }
-        }
+        sb.append("Total steps: ").append(simulationEngine.getCurrentTimeStep()).append("\n");
+        // אפשר להוסיף כאן סטטוסים ודוח מקלטים
         return sb.toString();
     }
-
-    //הדפסה כאשר אין גרפיקה
-    public void printSimulationSummary() {
-        System.out.println(getSimulationSummaryText());
-    }
-
-
 }

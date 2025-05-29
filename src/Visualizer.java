@@ -1,275 +1,236 @@
-
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.ListView;
 import javafx.scene.control.TextArea;
+import javafx.scene.layout.Background;
+import javafx.scene.layout.BackgroundFill;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.CornerRadii;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
-
-import java.util.List; // ודאי שאת מייבאת את המחלקות שלך
-// import your.project.GridMap;
-// import your.project.Person;
-// import your.project.Shelter;
-// import your.project.Cell;
-// import your.project.CellType;
-// import your.project.PersonStatus;
+import javafx.scene.control.ScrollPane;
 
 
-    public class Visualizer extends Application {
+import java.util.List;
+import java.util.stream.Collectors;
 
-        private static final int CELL_SIZE = 10; // גודל תא בפיקסלים - אפשר לשנות
-        private static final int WINDOW_DEFAULT_WIDTH = 800;
-        private static final int WINDOW_DEFAULT_HEIGHT = 600;
+public class Visualizer extends Application {
 
-        private Canvas mapCanvas;
-        private GraphicsContext gc; // GraphicsContext לציור על ה-Canvas
-        private Label statusLabel;
-        private TextArea infoTextArea;
+    private static final int CELL_SIZE = 15;  // גודל תא בפיקסלים
 
-        // נתונים מהסימולציה - נצטרך דרך לאתחל אותם ולקבל עדכונים
-        private GridMap currentMap;
-        private List<Person> currentPeopleList;
-        private List<Shelter> currentShelterList;
-        // private Map<Person, Shelter> currentAssignment; // אם נרצה להציג שיבוצים
+    private Canvas canvas;
+    private GraphicsContext gc;
+    private Button restartButton;
+    private Label timerLabel;
+    private Label savedLabel;
+    private Label peopleCountLabel;
+    private Label obstaclesCountLabel;
+    private Label sheltersCountLabel;
+    private ListView<String> shelterListView;
+    private Label statusLabel;
+    private TextArea infoTextArea;
 
-        // מתודה סטטית כדי שה-SimulationController יוכל להפעיל את ה-GUI
-        // ה-SimulationController יצטרך להחזיק רפרנס למופע של Visualizer אם הוא לא זה שמפעיל את launch
-        private static Visualizer instance;
+    private GridMap currentMap;
+    private List<Shelter> currentShelters;
 
-        public Visualizer() {
-            instance = this; // שמירת המופע הנוכחי
-        }
+    private SimulationController ctrl;
 
-        public static Visualizer getInstance() {
-            return instance;
-        }
+    public static void main(String[] args) {
+        launch(args);
+    }
 
-        @Override
-        public void start(Stage primaryStage) {
-            primaryStage.setTitle("BELL - Symulator Ewakuacji");
+    @Override
+    public void start(Stage primaryStage) {
+        // 1. צור Canvas
+        primaryStage.setMaximized(true);
+        canvas = new Canvas(600, 600);
+        gc     = canvas.getGraphicsContext2D();
 
-            BorderPane rootPane = new BorderPane();
+        // 2. צור את כל ה־Controls מראש!
+        restartButton        = new Button("הרץ שוב");
+        timerLabel           = new Label("זמן: 0");
+        savedLabel           = new Label("ניצולים: 0");
+        peopleCountLabel     = new Label("אנשים: 0");
+        obstaclesCountLabel  = new Label("מכשולים: 0");
+        sheltersCountLabel   = new Label("מקלטים: 0");
+        shelterListView      = new ListView<>();
+        shelterListView.setPrefHeight(120);
+        statusLabel          = new Label("ממתין...");
+        infoTextArea         = new TextArea();
+        infoTextArea.setPrefRowCount(4);
 
-            // 1. משטח תצוגה ראשי (Canvas)
-            // גודל ה-Canvas ייקבע בהתאם לגודל המפה שתיטען
-            // כרגע נשתמש בגודל ברירת מחדל, ונשנה אותו כשנטען מפה
-            mapCanvas = new Canvas(WINDOW_DEFAULT_WIDTH - 200, WINDOW_DEFAULT_HEIGHT - 100); // גודל התחלתי
-            gc = mapCanvas.getGraphicsContext2D();
-            rootPane.setCenter(mapCanvas);
+        // 3. עכשיו אפשר לבנות את ה־VBox בלי בעיה
+        VBox side = new VBox(8,
+                restartButton,
+                timerLabel,
+                savedLabel,
+                peopleCountLabel,
+                obstaclesCountLabel,
+                sheltersCountLabel,
+                new Label("מקלטים (ID:עומס/קיבולת):"),
+                shelterListView,
+                statusLabel,
+                infoTextArea
+        );
+        side.setPadding(new Insets(10));
+        side.setBackground(new Background(
+                new BackgroundFill(Color.WHITE, CornerRadii.EMPTY, Insets.EMPTY)
+        ));
 
-            // 2. תצוגת סטטוס ומידע (מימין ל-Canvas)
-            VBox rightPanel = new VBox(10); // 10 זה המרווח בין רכיבים
-            rightPanel.setStyle("-fx-padding: 10;");
+        // 4. עטוף את Canvas ב־ScrollPane (כפי שדיברנו)
+        ScrollPane canvasScroll = new ScrollPane(canvas);
+        canvasScroll.setPannable(true);
+        canvasScroll.setPrefViewportWidth(600);
+        canvasScroll.setPrefViewportHeight(600);
 
-            statusLabel = new Label("Status: Oczekiwanie na załadowanie scenariusza...");
-            infoTextArea = new TextArea();
-            infoTextArea.setEditable(false);
-            infoTextArea.setPrefRowCount(10);
+        // 5. סדר הכל ב־BorderPane
+        BorderPane root = new BorderPane();
+        root.setCenter(canvasScroll);
+        root.setRight(side);
 
-            // (נוסיף כאן כפתורים בהמשך אם נרצה)
+        primaryStage.setScene(new Scene(root));
+        primaryStage.setTitle("BELL Simulation");
+        primaryStage.show();
 
-            rightPanel.getChildren().addAll(new Label("Informacje o symulacji:"), statusLabel, infoTextArea);
-            rootPane.setRight(rightPanel);
+        // 6. הפעל סימולציה
+        ctrl = new SimulationController(this);
+        setupActions();
+        ctrl.loadAndSetupScenario();
+        ctrl.runAllocationAlgorithm();
+        ctrl.initializeSimulationEngine();
+        ctrl.startSimulation();
+    }
 
+    private void setupActions() {
+        restartButton.setOnAction(e -> {
+            infoTextArea.clear();
+            timerLabel.setText("זמן: 0");
+            savedLabel.setText("ניצולים: 0");
+            ctrl.loadAndSetupScenario();
+            ctrl.runAllocationAlgorithm();
+            ctrl.initializeSimulationEngine();
+            ctrl.startSimulation();
+        });
+    }
 
-            Scene scene = new Scene(rootPane, WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT);
-            primaryStage.setScene(scene);
-            primaryStage.show();
+    public void initializeVisuals(GridMap map, List<Person> people, List<Shelter> shelters) {
+        this.currentMap = map;
+        this.currentShelters = shelters;
+        canvas.setWidth(map.getCols() * CELL_SIZE);
+        canvas.setHeight(map.getRows() * CELL_SIZE);
 
-            // דוגמה לאיך ה-SimulationController יוכל לעדכן את ה-Visualizer
-            // זה צריך לקרות אחרי שה-Visualizer נוצר וה-Stage הוצג
-            // אם ה-Visualizer הוא זה שמפעיל את ה-Controller, אז הקריאה לאתחול תהיה כאן
-            // אם ה-Controller מפעיל את ה-Visualizer, הוא יצטרך לקרוא למתודות public של ה-Visualizer
-        }
-
-        // --- מתודות ציבוריות לעדכון ה-GUI מה-SimulationController ---
-
-        /**
-         * מאתחל את התצוגה עם נתוני התרחיש הראשוניים.
-         * ייקרא על ידי SimulationController לאחר טעינת התרחיש.
-         */
-        public void initializeVisuals(GridMap map, List<Person> people, List<Shelter> shelters) {
-            this.currentMap = map;
-            this.currentPeopleList = people;
-            this.currentShelterList = shelters;
-
-            if (map != null) {
-                // התאמת גודל ה-Canvas לגודל המפה
-                mapCanvas.setWidth(map.getCols() * CELL_SIZE);
-                mapCanvas.setHeight(map.getRows() * CELL_SIZE);
-            }
-            clearCanvas();
-            drawGrid();
-            drawObstacles();
-            drawShelters();
-            drawPeople(); // צייר אנשים במיקומם ההתחלתי
-            updateStatusLabel("Scenariusz załadowany. Gotowy do uruchomienia alokacji.");
-        }
-
-        /**
-         * מרענן את כל התצוגה על ה-Canvas.
-         * ייקרא על ידי SimulationController בכל צעד סימולציה.
-         */
-        public void refreshDisplay(List<Person> updatedPeopleList, String message, int currentTime, int peopleSaved) {
-            this.currentPeopleList = updatedPeopleList; // עדכון רשימת האנשים הפנימית
-
-            Platform.runLater(() -> { // חשוב לעדכונים מחוץ ל-Thread של JavaFX
-                clearCanvas();
-                drawGrid();
-                drawObstacles();
-                drawShelters();
-                // drawPaths(); // (אופציונלי) אם רוצים להציג מסלולים
-                drawPeople();
-
-                updateStatusLabel(message);
-                updateInfoTextArea("Czas: " + currentTime + "\nUratowani: " + peopleSaved);
-            });
-        }
-
-        public void updateStatusLabel(String text) {
-            Platform.runLater(() -> statusLabel.setText("Status: " + text));
-        }
-
-        public void updateInfoTextArea(String text) {
-            Platform.runLater(() -> infoTextArea.setText(text));
-        }
-
-        public void appendInfoTextArea(String text) {
-            Platform.runLater(() -> infoTextArea.appendText("\n" + text));
-        }
-
-
-        // --- מתודות עזר פנימיות לציור ---
-
-        private void clearCanvas() {
-            gc.clearRect(0, 0, mapCanvas.getWidth(), mapCanvas.getHeight());
-        }
-
-        private void drawGrid() {
-            if (currentMap == null) return;
-            gc.setStroke(Color.LIGHTGRAY);
-            gc.setLineWidth(0.5);
-
-            for (int i = 0; i <= currentMap.getRows(); i++) {
-                gc.strokeLine(0, i * CELL_SIZE, currentMap.getCols() * CELL_SIZE, i * CELL_SIZE);
-            }
-            for (int j = 0; j <= currentMap.getCols(); j++) {
-                gc.strokeLine(j * CELL_SIZE, 0, j * CELL_SIZE, currentMap.getRows() * CELL_SIZE);
+        // Static counts
+        peopleCountLabel.setText("אנשים: " + people.size());
+        int obstacleCount = 0;
+        for (int r = 0; r < map.getRows(); r++) {
+            for (int c = 0; c < map.getCols(); c++) {
+                if (map.getCell(r, c).getType() == CellType.OBSTACLE) obstacleCount++;
             }
         }
+        obstaclesCountLabel.setText("מכשולים: " + obstacleCount);
+        sheltersCountLabel.setText("מקלטים: " + shelters.size());
 
-        private void drawObstacles() {
-            if (currentMap == null) return;
-            gc.setFill(Color.DARKGRAY); // צבע למכשולים
-            for (int r = 0; r < currentMap.getRows(); r++) {
-                for (int c = 0; c < currentMap.getCols(); c++) {
-                    // החליפי את התנאי הבא בבדיקה האמיתית של סוג התא מה-GridMap שלך
-                    // if (currentMap.getCell(r, c).getType() == CellType.OBSTACLE) {
-                    // gc.fillRect(c * CELL_SIZE, r * CELL_SIZE, CELL_SIZE, CELL_SIZE);
-                    // }
-                    // דוגמה: נניח שיש לך מתודה isObstacle(r,c) ב-GridMap
-                    if (currentMap.getCell(r,c).getType() == CellType.OBSTACLE ) { // החליפי בבדיקה שלך
-                        gc.fillRect(c * CELL_SIZE, r * CELL_SIZE, CELL_SIZE, CELL_SIZE);
-                    }
-                }
-            }
-        }
+        // Shelters list
+        Platform.runLater(() -> shelterListView.getItems().setAll(
+                shelters.stream()
+                        .map(s -> s.getId() + ": " + s.getCurrentOccupancy() + "/" + s.getTotalCapacity())
+                        .collect(Collectors.toList())
+        ));
 
-        private void drawShelters() {
-            if (currentShelterList == null) return;
-            gc.setFill(Color.GREEN); // צבע למקלטים
-            for (Shelter shelter : currentShelterList) {
-                // ודאי שיש לך גישה למיקום המקלט (Cell)
-                // Cell shelterLocation = shelter.getLocation();
-                // gc.fillRect(shelterLocation.getCol() * CELL_SIZE, shelterLocation.getRow() * CELL_SIZE, CELL_SIZE, CELL_SIZE);
-                // אפשר להוסיף טקסט עם ה-ID של המקלט או הקיבולת
-                // gc.setFill(Color.BLACK);
-                // gc.fillText(shelter.getId(), shelterLocation.getCol() * CELL_SIZE + 2, shelterLocation.getRow() * CELL_SIZE + CELL_SIZE - 2);
-                // gc.setFill(Color.GREEN); // החזרה לצבע המקלט
-                Cell shelterLocation = shelter.getLocation();
-                if (shelterLocation != null) {
-                    gc.fillRect(shelterLocation.getCol() * CELL_SIZE, shelterLocation.getRow() * CELL_SIZE, CELL_SIZE, CELL_SIZE);
-                    // (אופציונלי) הוספת טקסט ID
-                    gc.setFill(Color.BLACK);
-                    gc.fillText(shelter.getId(), shelterLocation.getCol() * CELL_SIZE + 2, shelterLocation.getRow() * CELL_SIZE + CELL_SIZE - 2);
-                    gc.setFill(Color.GREEN); // חזרה לצבע מילוי מקלט
-                }
-            }
-        }
+        drawEverything(people);
+    }
 
-        private void drawPeople() {
-            if (currentPeopleList == null) return;
-            // צבעים שונים לסטטוסים שונים של אנשים
-            // gc.setFill(Color.BLUE); // ברירת מחדל לאדם
-            for (Person person : currentPeopleList) {
-                // Cell personLocation = person.getCurrentLocation();
-                // PersonStatus status = person.getStatus();
-                // switch (status) {
-                // case UNASSIGNED: gc.setFill(Color.LIGHTSLATEGRAY); break;
-                // case ASSIGNED: gc.setFill(Color.ORANGE); break;
-                // case MOVING: gc.setFill(Color.BLUE); break;
-                // case REACHED_SHELTER: gc.setFill(Color.DARKGREEN); break; // או לא לצייר אותם אם הם "בתוך" המקלט
-                // case STUCK: gc.setFill(Color.RED); break;
-                // default: gc.setFill(Color.BLACK); break;
-                // }
-                // gc.fillOval(personLocation.getCol() * CELL_SIZE + 1, personLocation.getRow() * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2); // עיגול קטן יותר מהתא
+    public void refreshDisplay(List<Person> people, String statusText, int timeStep, int reachedCount) {
+        Platform.runLater(() -> {
+            gc.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
+            drawMap();
+            drawPeople(people);
 
-                Cell personLocation = person.getCurrentLocation();
-                if (personLocation != null) {
-                    PersonStatus status = person.getStatus(); // ודאי שזו המתודה הנכונה לקבלת הסטטוס
-                    switch (status) {
-                        case UNASSIGNED: gc.setFill(Color.LIGHTSLATEGRAY); break;
-                        case ASSIGNED: gc.setFill(Color.ORANGE); break; // אדם ששובץ אך עוד לא זז
-                        case MOVING: gc.setFill(Color.BLUE); break;
-                        case REACHED_SHELTER: gc.setFill(Color.DARKGREEN); break; // אולי לא לצייר, או לצייר בצבע אחר
-                        case STUCK: gc.setFill(Color.RED); break;
-                        default: gc.setFill(Color.BLACK); break;
-                    }
-                    // ציור אדם כעיגול. אפשר גם להשתמש בסמל או תמונה.
-                    // +1 ו -2 זה כדי שהעיגול יהיה מעט קטן מהתא ולא יגע בקווים
-                    if (status != PersonStatus.REACHED_SHELTER) { // לא נצייר אנשים שהגיעו (כדי לא להסתיר מקלטים)
-                        gc.fillOval(personLocation.getCol() * CELL_SIZE + (CELL_SIZE*0.1),
-                                personLocation.getRow() * CELL_SIZE + (CELL_SIZE*0.1),
-                                CELL_SIZE * 0.8, CELL_SIZE * 0.8);
-                    }
-                }
-            }
-        }
+            // Dynamic updates
+            timerLabel.setText("זמן: " + timeStep);
+            savedLabel.setText("ניצולים: " + reachedCount);
+            peopleCountLabel.setText("אנשים: " + people.size());
+            statusLabel.setText(statusText);
 
-        // (אופציונלי) מתודה לציור מסלולים
-        private void drawPaths() {
-            // אם לכל אדם משובץ יש רשימה של תאי מסלול, אפשר לעבור עליהם ולצייר קווים
-            // gc.setStroke(Color.ORANGE);
-            // gc.setLineWidth(1);
-            // for (Person person : currentPeopleList) {
-            // if (person.getAssignedShelter() != null && person.getPath() != null && !person.getPath().isEmpty()) {
-            // List<Cell> path = person.getPath();
-            // Cell previousCell = person.getInitialLocation(); // או המיקום הנוכחי אם רוצים מסלול שנותר
-            // for (Cell currentCellOnPath : path) {
-            // gc.strokeLine(previousCell.getCol() * CELL_SIZE + CELL_SIZE / 2.0,
-            // previousCell.getRow() * CELL_SIZE + CELL_SIZE / 2.0,
-            // currentCellOnPath.getCol() * CELL_SIZE + CELL_SIZE / 2.0,
-            // currentCellOnPath.getRow() * CELL_SIZE + CELL_SIZE / 2.0);
-            // previousCell = currentCellOnPath;
-            // }
-            // }
-            // }
-        }
+            shelterListView.getItems().setAll(
+                    currentShelters.stream()
+                            .map(s -> s.getId() + ": " + s.getCurrentOccupancy() + "/" + s.getTotalCapacity())
+                            .collect(Collectors.toList())
+            );
+        });
+    }
 
-        // --- שילוב עם SimulationController ---
-        // ה-SimulationController יצטרך להפעיל את האפליקציה הזו (למשל, Visualizer.launch(Visualizer.class, args))
-        // או שה-main של התוכנית יפעיל את ה-Visualizer, וה-Visualizer ייצור וינהל את ה-SimulationController.
-        // לאחר מכן, ה-Controller יקרא למתודות כמו initializeVisuals ו-refreshDisplay.
+    public void updateInfoTextArea(String text) {
+        Platform.runLater(() -> infoTextArea.appendText(text + " "));
+    }
 
-        public static void main(String[] args) {
-            // כדי להריץ את ה-Visualizer באופן עצמאי לבדיקות עיצוב ראשוניות:
-            // (תצטרכי ליצור מופעים דמה של GridMap, Person, Shelter אם תריצי כך)
-            launch(args);
+    public void updateStatusLabel(String text) {
+        Platform.runLater(() -> statusLabel.setText(text));
+    }
+
+    private void drawEverything(List<Person> people) {
+        drawMap();          // כאן עדיין מציירים רק ריבועי רקע ומכשולים
+        drawPeople(people); // עכשיו האנשים
+        drawShelters();     // ואז המקלטים מעל כולם
+    }
+
+    // הוסף מתודה חדשה:
+    private void drawShelters() {
+        for (Shelter s : currentShelters) {
+            int r = s.getLocation().getRow(), c = s.getLocation().getCol();
+            gc.setFill(Color.GOLD);
+            gc.fillRect(c*CELL_SIZE, r*CELL_SIZE, CELL_SIZE, CELL_SIZE);
+            // אפשר גם לצייר גבול או אייקון
         }
     }
 
+
+    private void drawMap() {
+        int rows = currentMap.getRows(), cols = currentMap.getCols();
+        for (int r = 0; r < rows; r++) {
+            for (int c = 0; c < cols; c++) {
+                Cell cell = currentMap.getCell(r, c);
+                gc.setFill(cell.getType() == CellType.OBSTACLE ? Color.DARKGRAY
+                        : cell.getType() == CellType.SHELTER  ? Color.GOLD
+                        : Color.WHITE);
+                gc.fillRect(c * CELL_SIZE, r * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+            }
+        }
+        gc.setStroke(Color.LIGHTGRAY);
+        gc.setLineWidth(0.5);
+        for (int r = 0; r <= rows; r++)
+            gc.strokeLine(0, r * CELL_SIZE, cols * CELL_SIZE, r * CELL_SIZE);
+        for (int c = 0; c <= cols; c++)
+            gc.strokeLine(c * CELL_SIZE, 0, c * CELL_SIZE, rows * CELL_SIZE);
+    }
+
+    private void drawPeople(List<Person> people) {
+        double size = CELL_SIZE * 0.8;
+        for (Person p : people) {
+            int r = p.getCurrentLocation().getRow(),
+                    c = p.getCurrentLocation().getCol();
+
+            Color fill;
+            switch (p.getStatus()) {
+                case REACHED_SHELTER: fill = Color.LIMEGREEN;     break;
+                case MOVING:         fill = Color.CORNFLOWERBLUE; break;
+                case STUCK:          fill = Color.RED;           break;
+                case UNASSIGNED:     fill = Color.PURPLE;        break;  // סגול
+                default:             fill = Color.GRAY;          break;
+            }
+            gc.setFill(fill);
+
+            double x = c * CELL_SIZE + (CELL_SIZE - size) / 2;
+            double y = r * CELL_SIZE + (CELL_SIZE - size) / 2;
+            gc.fillOval(x, y, size, size);
+        }
+    }
+
+}

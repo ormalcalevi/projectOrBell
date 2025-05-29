@@ -40,7 +40,11 @@ public class Shelter {
     }
 
     public void setTotalCapacity(int totalCapacity) {
-        this.totalCapacity = totalCapacity;
+        if (totalCapacity < 0) {
+            this.totalCapacity = 0;
+        } else {
+            this.totalCapacity = totalCapacity;
+        }
     }
 
     public int getRemainingCapacity(){
@@ -55,12 +59,21 @@ public class Shelter {
         setCurrentOccupancy(0);
     }
 
-    public void addOccupant(){
-        setCurrentOccupancy(this.currentOccupancy+1);
+    public void addOccupant() {
+        if (this.currentOccupancy < this.totalCapacity) { // בדוק אם יש עוד מקום
+            this.currentOccupancy++;
+        } else {
+            System.err.println("Shelter " + getId() + " is full. Cannot add more occupants. Current: " + this.currentOccupancy + ", Capacity: " + this.totalCapacity);
+        }
     }
 
-    public void decrementOccupancy(){setCurrentOccupancy(this.currentOccupancy--);}
-
+    public void decrementOccupancy() {
+        if (this.currentOccupancy > 0) {
+            this.currentOccupancy--;
+        } else {
+            System.err.println("Warning: Attempted to decrement occupancy below zero for shelter " + this.id);
+        }
+    }
 
 
 
