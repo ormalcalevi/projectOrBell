@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 
 public class Visualizer extends Application {
 
-    private static final int CELL_SIZE = 15;  // גודל תא בפיקסלים
+    private static final int CELL_SIZE = 12;  // גודל תא בפיקסלים
 
     private Canvas canvas;
     private GraphicsContext gc;

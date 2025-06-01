@@ -175,7 +175,7 @@ public class informationManagement {
 
                     shelter.setLocation(emptyCell);
 
-                    System.out.println("מיקום: " + shelter.getId() + " ב-" + emptyCell); // הדפסת בדיקה
+                    //System.out.println("מיקום: " + shelter.getId() + " ב-" + emptyCell); // הדפסת בדיקה
                 }
                 else {
                     //בדיקת ביטחון

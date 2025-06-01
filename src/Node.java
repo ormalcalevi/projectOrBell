@@ -81,11 +81,11 @@ public class Node  implements Comparable<Node> {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Node node = (Node) o;
-        return Objects.equals(cell, node.cell); // הנחה: Cell.equals() ממומש נכון
+        return Objects.equals(cell, node.cell);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(cell); // הנחה: Cell.hashCode() ממומש נכון
+        return Objects.hash(cell);
     }
 }

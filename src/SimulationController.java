@@ -3,12 +3,8 @@ import java.util.Map;
 import javafx.animation.Timeline;
 import javafx.animation.KeyFrame;
 import javafx.animation.Animation;
-import javafx.application.Platform;
 import javafx.util.Duration;
-import javafx.animation.KeyFrame;
-import javafx.animation.Timeline;
-import javafx.animation.Animation;
-import javafx.util.Duration;
+
 
 public class SimulationController {
 
@@ -80,7 +76,7 @@ public class SimulationController {
     /**
      * מריץ את אלגוריתם ההקצאה עם הפרמטרים מה-informationManagement
      */
-   public void runAllocationAlgorithm() {
+    public void runAllocationAlgorithm() {
         if (currentMap == null || currentPeople == null || currentShelters == null || currentOptionalShelters == null) {
             if (visualizer != null) {
                 visualizer.updateStatusLabel("שגיאה: נתונים חסרים להקצאה.");
@@ -188,9 +184,7 @@ public class SimulationController {
         }
     }
 
-    /**
-     * מתחיל סימולציה דינמית באמצעות JavaFX Timeline
-     */
+   //סימולציה דינאמית
     public void startSimulation() {
         if (simulationEngine == null) return;
 

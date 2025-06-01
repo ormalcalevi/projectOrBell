@@ -59,7 +59,7 @@ public class SimulationEngine {
                 p.setAssignedShelter(assignedShelter);
                 Cell startCell = p.getCurrentLocation();
                 Cell goalCell = assignedShelter.getLocation();
-////////////////////קריאה לפונקציה עבור יצירת הA* עבור כל אדם
+                /////////קריאה לפונקציה עבור יצירת הA* עבור כל אדם
                 if (startCell != null && goalCell != null) {
                     List<Cell> calculatedPath = this.pathFinder.findPath(startCell, goalCell);
                     p.setPath(calculatedPath);
@@ -149,13 +149,12 @@ public class SimulationEngine {
                     if (p.getStatus() == PersonStatus.MOVING) { // אם הוא היה בתנועה
                         if (p.getAssignedShelter() != null && p.getCurrentLocation().equals(p.getAssignedShelter().getLocation())) {
                             p.setStatus(PersonStatus.REACHED_SHELTER);
-                            //p.getAssignedShelter().addOccupant();
                         } else if (p.getAssignedShelter() != null && !p.getCurrentLocation().equals(p.getAssignedShelter().getLocation())) {
                             // עדיין בתנועה, אין צעד הבא, והוא לא ביעד - תקוע.
                             //System.err.println("Person " + p.getId() + " is STUCK: MOVING but no next step and not at goal " + p.getAssignedShelter().getLocation() + ". Current: " + p.getCurrentLocation());
                             p.setStatus(PersonStatus.STUCK);
                         } else if (p.getAssignedShelter() == null) {
-                            System.err.println("Person " + p.getId() + " is STUCK: MOVING but has no assigned shelter.");
+                            //System.err.println("Person " + p.getId() + " is STUCK: MOVING but has no assigned shelter.");
                             p.setStatus(PersonStatus.UNASSIGNED);
                         }
                     }
@@ -165,14 +164,12 @@ public class SimulationEngine {
         return plannedMoves;
     }
 
-
+//מחזירה רשימה של אנשים אשר יזוזו
     private List<Person> preventCollisionsAndExecuteNextStep(Map<Person, Cell> plannedMoves) {
         List<Person> peopleActuallyMovingThisStep = new ArrayList<>();
         Map<Cell, List<Person>> targetCellContenders = new HashMap<>();
 
         // שלב ראשון : בדיקה עבור כל אדם אם התא אליו הוא מיועד קיים כבר או לא
-        // אם כן : מכניסים את האדם לרשימה של האנשים עבור התא הזה
-        // אם לא : יוצרים רשימה חדשה של אנשים אשר ייצגו את כניסתם לתא
         for (Map.Entry<Person, Cell> entry : plannedMoves.entrySet()) {
             Person person = entry.getKey();
             Cell targetCell = entry.getValue();
@@ -196,7 +193,7 @@ public class SimulationEngine {
         return peopleActuallyMovingThisStep;
     }
 
-    ///return Prioritized Person From Contenders
+    ///return Prioritized Person From Contenders - who is closer
     public Person selectPrioritizedPersonFromContenders(List<Person>listPeopleCell , Cell cellCompetition ){
         Person prioritizedPerson = null;
         int DistanceToShelter = Integer.MAX_VALUE;
@@ -223,51 +220,37 @@ public class SimulationEngine {
     }
 
 
-    /**
-     * מבצע בפועל את התנועה עבור האנשים שאושרו לזוז.
-     * @param peopleToMove רשימת האנשים שיש להזיז.
-     */
+    //אישור האנשים שיכולים לזוז
     private void executeMoves(List<Person> peopleToMove) {
-        System.out.println("Executing moves for " + peopleToMove.size() + " people.");
+        //System.out.println("Executing moves for " + peopleToMove.size() + " people.");
         for (Person person : peopleToMove) {
-            // ודא שהאדם עדיין במצב תנועה ולא הגיע/נתקע בינתיים
-            if (person.getStatus() == PersonStatus.MOVING) {
-                Cell oldLocation = person.getCurrentLocation(); // אופציונלי לדיבאג
-                person.advanceOnPath(); // מקדם את האדם בנתיב שלו (מעדכן מיקום ו-pathIndex)
 
-                // אם advanceOnPath לא מעדכנת תפוסת מקלט, עשה זאת כאן:
+            if (person.getStatus() == PersonStatus.MOVING) {
+                person.advanceOnPath();
+
+                // update capacity
                 if (person.getStatus() == PersonStatus.REACHED_SHELTER) {
                     if (person.getAssignedShelter() != null) {
-                        // לפני שמעדכנים, אפשר לבדוק אם כבר עדכנו כדי למנוע ספירה כפולה
-                        // (למשל, אם הסטטוס *רק עכשיו* השתנה ל-REACHED_SHELTER)
-                        // אבל אם addOccupant מטפל בזה, זה בסדר.
-                        // בדרך כלל, מעדכנים תפוסה רק פעם אחת כשהסטטוס משתנה.
-                        person.getAssignedShelter().addOccupant(); // או incrementOccupancy()
-                        System.out.println("Person " + person.getId() + " has officially reached shelter " +
-                                person.getAssignedShelter().getId() + ". Shelter occupancy updated.");
+                        person.getAssignedShelter().addOccupant();
+                        //System.out.println("Person " + person.getId() + " has officially reached shelter " +person.getAssignedShelter().getId() + ". Shelter occupancy updated.");
                     }
                 }
             }
         }
     }
 
-    /**
-     * בודק אם הסימולציה הסתיימה (כל האנשים המשובצים הגיעו או נתקעו).
-     * אם כן, מעדכן את this.simulationFinished ל-true.
-     */
+   //true = finish
     private void checkAndSetSimulationEndCondition() {
         if (this.personList == null || this.personList.isEmpty()) {
-            this.simulationFinished = true; // אין אנשים, הסימולציה הסתיימה
+            this.simulationFinished = true; //finish
             return;
         }
 
         boolean allAssignedAreDoneOrStuck = true;
         for (Person person : this.personList) {
-            // בדוק רק אנשים שהיו אמורים לזוז (ASSIGNED או MOVING בתחילת הצעד)
-            // או כאלה ששובצו (כלומר, לא UNASSIGNED מלכתחילה)
             if (person.getAssignedShelter() != null) { // רק אנשים ששובצו למקלט
                 if (person.getStatus() == PersonStatus.ASSIGNED || person.getStatus() == PersonStatus.MOVING) {
-                    allAssignedAreDoneOrStuck = false; // מצאנו מישהו שעדיין בתהליך
+                    allAssignedAreDoneOrStuck = false; // no finish
                     break;
                 }
             }
@@ -279,10 +262,7 @@ public class SimulationEngine {
         }
     }
 
-    /**
-     * מעדכן את הסטטוס של כל האנשים שעדיין בתנועה ל-STUCK (או TIMED_OUT)
-     * כאשר הסימולציה מסתיימת בגלל מגבלת זמן.
-     */
+    //check if the time over
     private void finishSimulationDueToTimeout() {
         if (this.personList != null) {
             for (Person person : this.personList) {
@@ -295,7 +275,6 @@ public class SimulationEngine {
     }
 
 
-    // פונקציית עזר ל-manhattanDistance (יכולה להיות גם סטטית או במחלקה אחרת)
     private int manhattanDistance(Cell c1, Cell c2) {
         if (c1 == null || c2 == null) return Integer.MAX_VALUE;
         return Math.abs(c1.getRow() - c2.getRow()) + Math.abs(c1.getCol() - c2.getCol());
